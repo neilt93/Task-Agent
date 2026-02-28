@@ -1,0 +1,5 @@
+- [ ] Check agent flow works (Sympli)
+- [ ] Travel to NYC 📅 2026-02-28
+- [ ] TAP Score
+- [ ] Profs email
+- [ ] Find events

@@ -1,0 +1,5 @@
+.obsidian/workspace*.json
+.obsidian/plugins/*/main.js
+.obsidian/plugins/*/styles.css
+.obsidian/themes/*/theme.css
+.DS_Store

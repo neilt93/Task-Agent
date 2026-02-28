@@ -1,0 +1,20 @@
+{
+  "daily": {
+    "enabled": true,
+    "format": "YYYY-MM-DD",
+    "folder": "Daily",
+    "template": "Templates/Daily"
+  },
+  "weekly": {
+    "enabled": false
+  },
+  "monthly": {
+    "enabled": false
+  },
+  "quarterly": {
+    "enabled": false
+  },
+  "yearly": {
+    "enabled": false
+  }
+}
