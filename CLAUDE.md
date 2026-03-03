@@ -1,66 +1,55 @@
-# Task Vault
+# Task-Agent — Obsidian Vault
 
-**Absolute path:** `/Users/neiltripathi/Library/Mobile Documents/com~apple~CloudDocs/Tasks`
-
-Obsidian vault for personal productivity. Minimal theme, daily-note-driven.
+This is a personal task vault built on Obsidian. It is used across both Mac and Windows machines, synced via Git.
 
 ## Structure
 
-```
-Home.md          — dashboard with links + dataview queries
-Inbox.md         — quick task capture
-Jobs.md          — weekly job application tracker (target: 50/week)
-Daily/           — daily notes (YYYY-MM-DD.md)
-Projects/        — one note per project
-Templates/       — Daily.md, Project.md
-Archive/         — completed/old stuff
-```
+- `Home.md` — Dashboard with due/overdue tasks, recent daily notes, active projects, and navigation links
+- `Inbox.md` — Quick capture for new tasks and ideas
+- `Daily/` — One note per day, filename format: `YYYY-MM-DD.md`
+- `Weekly/` — One note per week, filename format: `YYYY-[W]ww.md` (e.g., `2026-W09.md`)
+- `Projects/` — One note per project, created from `Templates/Project.md`
+- `Templates/` — Templates for daily notes, weekly reviews, and projects
+- `Archive/` — Completed/old items
 
-## How to add tasks
+## Daily Notes
 
-Add to `Inbox.md` as checkbox lines:
-```
-- [ ] Task description
-```
+- Always create daily notes in `Daily/` with the format `YYYY-MM-DD.md`
+- Use the structure from `Templates/Daily.md` (date header, Tasks, Notes, Journal sections)
+- Check if today's daily note exists before creating a new one
 
-## How to add a project
+## Weekly Notes
 
-Create `Projects/<Name>.md` with this format:
-```
----
-status: active
----
-
-## Goal
-
+- Create weekly review notes in `Weekly/` with the format `YYYY-[W]ww.md`
+- Use the structure from `Templates/Weekly.md` (Review, Plan, Notes sections)
+- Weekly notes are created via the Calendar sidebar (click a week number) or Periodic Notes plugin
 
 ## Tasks
-- [ ]
 
-## Notes
+- Tasks use Obsidian Tasks plugin syntax: `- [ ] Task name`
+- Due dates use the format: `📅 YYYY-MM-DD`
+- Quick-capture tasks go in `Inbox.md`
+- Daily tasks go in the day's note under `## Tasks`
 
-```
+## Projects
 
-## How to log a job application
+- Create project notes in `Projects/` using the `Templates/Project.md` structure
+- Projects have frontmatter with `status: active` (or `on-hold`, `completed`) and `created: YYYY-MM-DD`
+- Each project has Goal, Tasks, Milestones, Log, and Notes sections
 
-Add a checked task line to `Jobs.md` under the `## This Week` section:
-```
-- [x] Company - Role
-```
-The dataview counter at the top updates automatically.
+## Config Paths
 
-## After working on a project
+- Daily notes folder: `Daily/`, template: `Templates/Daily`
+- Weekly notes folder: `Weekly/`, template: `Templates/Weekly`
+- Templates folder: `Templates/`
 
-Update the project's file in `Projects/` before ending the session:
-- Check off completed tasks (`- [x]`)
-- Add new tasks discovered during the session
-- Add relevant notes (commands, decisions, gotchas, port numbers, etc.)
-- Update `status` in frontmatter if the project is done or paused
+## Plugins
 
-## Conventions
+Dataview, Tasks, Calendar, Periodic Notes, Obsidian Git, Style Settings.
+Plugin files (main.js, styles.css) are tracked in git so clones work out of the box.
 
-- No numbered folder prefixes — keep names plain
-- Frontmatter: `status` field for projects (active/completed/on-hold)
-- Daily notes created from `Templates/Daily.md` via Periodic Notes plugin
-- Don't edit Templates/ unless changing the format for future notes
-- Keep it simple — add structure only when needed
+## Git Workflow
+
+- Commit and push changes after making updates to keep Mac and Windows in sync
+- Pull before making changes to avoid conflicts
+- The Obsidian Git plugin handles auto-sync when the vault is open

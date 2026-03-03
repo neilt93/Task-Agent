@@ -3,3 +3,6 @@
 - [ ] TAP Score
 - [ ] Profs email
 - [ ] Find events
+- [ ] Connect w Ahmed (via Arpit)
+- [ ] Register for HAX Deep Tech Showcase (April 1, NYC) 📅 2026-04-01
+- [ ] Review accelerator shortlist → [[Startup-Accelerators-and-Fundraising]]
