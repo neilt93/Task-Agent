@@ -1,3 +1,7 @@
+# {{date:dddd, MMMM D, YYYY}}
+
+---
+
 ## Tasks
 - [ ]
 
@@ -5,4 +9,4 @@
 
 
 ## Journal
->
+> How did today go?

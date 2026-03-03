@@ -1,0 +1,8 @@
+{
+  "weekly": {
+    "enabled": true,
+    "folder": "Weekly",
+    "format": "YYYY-[W]ww",
+    "template": "Templates/Weekly"
+  }
+}
