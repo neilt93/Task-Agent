@@ -3,3 +3,4 @@
 .obsidian/plugins/*/styles.css
 .obsidian/themes/*/theme.css
 .DS_Store
+.obsidian/plugins/obsidian-git/obsidian_askpass.sh
