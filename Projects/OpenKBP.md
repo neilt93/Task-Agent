@@ -1,5 +1,5 @@
 ---
-status: active
+status: submitted
 ---
 
 ## Goal
@@ -13,8 +13,9 @@ Evaluate robustness of 3D U-Net dose prediction model for head-and-neck radiothe
 - [x] Add finer severity levels (L0, L3-L5) to find perturbation take-off thresholds
 - [x] Re-run inference on RunPod for new levels (16 new conditions, 40 patients each)
 - [x] Update Report 2 with finer-level results and regenerated figures
-- [ ] Send updated Report 2 to Birjoo
+- [x] Send updated Report 2 to Birjoo
 - [x] Blog post: CT perturbation robustness findings 📅 2026-03-03
+- [x] Paper submitted to SERA 2026 (submission #37, uploaded by Weixian Liao) 📅 2026-03-14
 
 ## Notes
 
@@ -23,6 +24,13 @@ Evaluate robustness of 3D U-Net dose prediction model for head-and-neck radiothe
 - **P2 Bone Shift**: Late take-off at L4-L5 (+11.2% DVH at L5). Threshold ~500 HU bone shift.
 - **P1 Noise, P3 Bias Field, P5 Dental**: Flat through L5. Model is robust even at extreme amplitudes.
 - Best model: DVH Score 2.535, Dose Score 3.731 Gy
+
+### Conference Submission
+- **SERA 2026** (24th IEEE/ACIS International Conference on Software Engineering Research, Management and Applications)
+- Title: "Adversarial Robustness Evaluation of 3D U-Net-Based Radiation Therapy Dose Prediction Using Clinical DVH Metrics"
+- Authors: Rahim Chowdhury, Neil Tripathi, Lei Ren, Amit Sawant, Birjoo Vaishnav, Weixian Liao
+- Submitted: 2026-03-14, submission #37
+- EasyChair: https://easychair.org/conferences/?conf=sera2026
 
 ### Files
 - Report 2 PDF: `reports/report2_ct_perturbation/ct_perturbation_robustness_report.pdf`

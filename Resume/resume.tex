@@ -14,12 +14,6 @@
 \usepackage[T1]{fontenc}
 \usepackage[default]{sourcesanspro}
 
-% -------------------- PLACEHOLDER NOTES --------------------
-% Replace bracketed placeholders like [N], [X%], [p95] with your real numbers.
-% Sentient: (# tasks in eval set, metrics, reliability improvements, regressions caught)
-% 4mainstreet: (dataset scale, eval metric, compute optimisation % cost/runtime)
-% HVAC detector: (precision/recall or mAP, test set size, inference speed, failure modes fixed)
-% Sympli: (latency targets, hallucination rate checks, deployment details, usage numbers)
 
 \pagestyle{fancy}
 \fancyhf{}
@@ -102,18 +96,35 @@
 \resumeSubHeadingListStart
 
   \resumeSubheading
-    {Benchmarking Commonsense Visual Reasoning for Vision-Language Models}{2025}
-    {Co-author with Prof. Ernest Davis (NYU); submitted to arXiv, 2026}{}
+    {TAP-Score: Runtime Failure Detection for Diffusion Policy}{Jan 2026 -- Present}
+    {Independent Research}{}
+  \resumeItemListStart
+    \resumeItem{Trained a supervised risk predictor on real visuomotor rollouts to detect when a Diffusion Policy will fail before execution completes.}
+    \resumeItem{Achieved AUROC 0.972 on Can and 0.982 (obs-only) on Lift under zero-object perturbation; selective execution yields 100\% success at 20\% coverage vs 45\% baseline.}
+    \resumeItem{Built a world-model guardrail (action-conditioned latent model, success-only training); fusion of WM + TAP reaches AUROC 0.923.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {Temporal Reasoning Benchmark for Large Language Models}{Mar 2026 -- Present}
+    {Independent Research}{}
+  \resumeItemListStart
+    \resumeItem{Built a benchmark testing whether LLMs recognise when their context is stale; fine-tuned GPT-2 and TinyLlama with time-conditioned inputs.}
+    \resumeItem{Frontier eval: GPT-5.4 shows 100\% false trust without timestamps, 0\% with; Claude Opus reaches 100\% switch sensitivity. Key finding: more capable models are more confidently wrong when timestamps are absent.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {Benchmarking Commonsense Visual Reasoning for Vision-Language Models}{2025 -- 2026}
+    {Co-author with Prof. Ernest Davis (NYU); arXiv cs.AI, Mar 2026}{}
   \resumeItemListStart
     \resumeItem{Designed a visibility-reasoning benchmark (100 families, 300 headline cells, 2$\times$2 XOR design) with automated graders and scoring.}
     \resumeItem{Evaluated 9 VLMs across three tiers (flagship, prior-gen, open-source); surfaced a 26\% abstention rate in GPT-5 as key finding.}
   \resumeItemListEnd
 
   \resumeSubheading
-    {Legal Text Classification with BERT and LegalBERT}{2024}
-    {Co-author; Natural Language Processing course project (NYU)}{}
+    {Adversarial Robustness of 3D U-Net Radiation Therapy Dose Prediction}{2025 -- 2026}
+    {Co-author; submitted to SERA 2026 (IEEE/ACIS)}{}
   \resumeItemListStart
-    \resumeItem{Fine-tuned BERT-family models on legal corpora; compared against classical baselines with reproducible training and reporting.}
+    \resumeItem{Evaluated adversarial (FGSM/PGD) and clinically plausible CT perturbations on the OpenKBP dataset using DVH metrics; identified resolution downsampling as the only perturbation with immediate clinical impact.}
   \resumeItemListEnd
 
 \resumeSubHeadingListEnd
@@ -174,27 +185,21 @@
   \resumeItemListEnd
 
   \resumeSubheading
+    {Connectome-Driven Locomotion Controller}{Mar 2026 -- Present}
+    {Independent Research}{}
+  \resumeItemListStart
+    \resumeItem{Simulated the full MANC ventral nerve cord (13,101 neurons, 1.9M synapses) in Brian2 with MuJoCo physics via FlyGym; minimal 1,000-neuron circuit preserves tripod gait and causal ablation results.}
+    \resumeItem{Demonstrated emergent odor avoidance from connectome wiring alone (no engineered navigation logic) and discovered a 2-neuron hygrosensory bottleneck (DNb05).}
+    \resumeItem{Deploying to a Waveshare HexArth hexapod (18-DOF, servo feedback) for sim-to-real transfer with closed-loop proprioception.}
+  \resumeItemListEnd
+
+  \resumeSubheading
     {1:72 Scale HVAC Assembly Part Counter}{Jun 2025 -- Present}
     {Computer Vision Developer (Contract)}{New York City, NY}
   \resumeItemListStart
     \resumeItem{Trained an object detector across 14 part classes; achieved 95\% accuracy on a 1,200-image test set; delivered an iOS app for part counting.}
     \resumeItem{Improved robustness to lighting variance and motion blur; fixed 12 failure modes and optimised latency to under 5s on iPhone 16 Pro.}
   \resumeItemListEnd
-
-  \resumeSubheading
-    {Transformer Language Model from Scratch}{2025}
-    {Personal Project}{}
-  \resumeItemListStart
-    \resumeItem{Implemented a Transformer LM in PyTorch; trained on an anonymised corpus (2.6M tokens) and reached validation perplexity 15.}
-  \resumeItemListEnd
-
-  \resumeSubheading
-  {TAP-Score (Push-T OOD Detection)}{Jan 2026 -- Present}
-  {Personal Project}{}
-\resumeItemListStart
-  \resumeItem{Replicated Diffusion Policy on Push-T; built TAP-Score to rate (obs, action-chunk) pairs using demo positives + shuffled/noisy negatives.}
-  \resumeItem{Tested OOD detection under brightness/noise/occlusion; reporting AUROC and clean false-alarm rate with score traces.}
-\resumeItemListEnd
 
 \resumeSubHeadingListEnd
 
@@ -209,7 +214,7 @@
 
   \resumeSkillHeading{Machine Learning}
   \resumeItemListStart
-    \resumeItem{PyTorch, TensorFlow, object detection, data augmentation, LLM fine-tuning, evaluation pipelines, prompt design, agent tool use}
+    \resumeItem{PyTorch, TensorFlow, MuJoCo, Brian2, object detection, diffusion models, LLM fine-tuning, evaluation pipelines, agent tool use}
   \resumeItemListEnd
 
   \resumeSkillHeading{Data \& Cloud}
