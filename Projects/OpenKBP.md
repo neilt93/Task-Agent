@@ -25,12 +25,21 @@ Evaluate robustness of 3D U-Net dose prediction model for head-and-neck radiothe
 - **P1 Noise, P3 Bias Field, P5 Dental**: Flat through L5. Model is robust even at extreme amplitudes.
 - Best model: DVH Score 2.535, Dose Score 3.731 Gy
 
-### Conference Submission
-- **SERA 2026** (24th IEEE/ACIS International Conference on Software Engineering Research, Management and Applications)
+### Conference Submissions
+
+**SERA 2026** (24th IEEE/ACIS International Conference on Software Engineering Research, Management and Applications)
 - Title: "Adversarial Robustness Evaluation of 3D U-Net-Based Radiation Therapy Dose Prediction Using Clinical DVH Metrics"
 - Authors: Rahim Chowdhury, Neil Tripathi, Lei Ren, Amit Sawant, Birjoo Vaishnav, Weixian Liao
 - Submitted: 2026-03-14, submission #37
 - EasyChair: https://easychair.org/conferences/?conf=sera2026
+
+**ASTRO 2026** (68th Annual Meeting of the American Society for Radiation Oncology)
+- Title: "Assessing the Generalizability and Robustness of Deep-Learning Dose Prediction in Head-and-Neck Radiotherapy to Clinically Realistic CT Perturbations"
+- Authors: N. Tripathi (NYU), R. Chowdhury (UMD St. Joseph), L. Ren, A. Sawant, B. D. Vaishnav (UMD Radiation Oncology)
+- Abstract ID: #79011, submitted 2026-02-25 by Birjoo
+- Presenting author: Birjoo Vaishnav (backup: Amit Sawant)
+- Junior Investigator Travel Award applied for Neil
+- Note from Birjoo: "Congratulations to Neil for getting his first abstract ever in!"
 
 ### Files
 - Report 2 PDF: `reports/report2_ct_perturbation/ct_perturbation_robustness_report.pdf`

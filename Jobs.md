@@ -28,6 +28,16 @@ WHERE file.name = "Jobs"
 - [x] Databricks - Sr. ML Engineer *(2026-03-02)* [link](https://databricks.com/company/careers/open-positions/job?gh_jid=7276195002)
 - [x] Anthropic - Training Content and Systems Architect *(2026-03-02)* [link](https://job-boards.greenhouse.io/anthropic/jobs/5097351008)
 
+### Active Conversations
+
+- [ ] Baton Corporation (pump.fun) - Interview with Lloyd McCarthy, scheduled 2026-03-26 2pm ET
+- [ ] PermitFlow - SWE New Grad, $54M Series B (YC), replied to Sam Lam (CTO) 2026-03-15
+- [ ] Eigen Labs - Summer Fellowship 2026, interview 2026-03-12
+- [ ] Hyde - Intro from Karan Sirdesai to Aditya Rajan (founding team), connected on WhatsApp 2026-03-13
+- [ ] The Residency - Nick Linck, meeting 2026-03-17 2pm ET
+- [ ] Fracta Labs - Naman Kapasi, meeting 2026-03-17 3:30pm ET
+- [ ] Anthropic Fellows / Constellation - Research Brainstorm call 2026-03-11
+
 ### Pipeline
 
 - [ ] Scale AI - Software Engineer, New Grad (50.7)
@@ -44,3 +54,7 @@ WHERE file.name = "Jobs"
 - [ ] Anthropic - SWE, Agent SDK - Claude Code (50.0)
 - [ ] Anthropic - Full Stack SWE, Reinforcement Learning (50.0)
 - [ ] Mistral AI - Applied AI, Forward Deployed MLE (51.2)
+
+### Rejected
+
+- MIT EECS PhD *(2026-03-10)*
