@@ -1,5 +1,5 @@
 ---
-status: active
+status: submitted
 ---
 
 ## Goal
@@ -13,12 +13,21 @@ Publish VB (Visibility Benchmark) paper evaluating 9 VLMs on visibility reasonin
 - [x] Update paper from 10 to 9 models with 3/3/3 tier split
 - [x] Update all tables, scores, and prose throughout paper
 - [x] Push updated paper to GitHub
-- [ ] Address remaining reviewer feedback (submission readiness pass)
-- [ ] Submit to arXiv / target venue
+- [x] Address remaining reviewer feedback (submission readiness pass)
+- [x] Make repo submission-ready (LICENSE, requirements.txt, .env.example, .gitignore, README)
+- [x] Fix prompt block rendering (switch to lstlisting, no wrap markers)
+- [x] Fix licensing wording (code=MIT, data=CC BY 4.0)
+- [x] Fix paper date, author block (NYU affiliation + nt2439@nyu.edu)
+- [x] Get arXiv endorsement for cs.AI
+- [x] Submit to arXiv 📅 2026-03-03
+- [x] Blog post: VLM visibility benchmark preview 📅 2026-03-03
+- [x] Tweet thread (3 tweets + chart) 📅 2026-03-03
+- [ ] Add arXiv link to tweet thread once live (~24h)
 
 ## Notes
 - **Repo:** https://github.com/neilt93/Paper-with-Davis
-- **Latest commit:** `5ef0be4` — Re-score all models and update paper to 9-model lineup
+- **Latest commit:** `443e544` — Switch prompt block from Verbatim to lstlisting
+- **arXiv:** Submitted 2026-03-03 (cs.AI, CC BY 4.0)
 - **9 models (3/3/3):**
   - Flagship: Gemini 3.1 Pro, GPT-5, Claude Opus 4.5
   - Prior-gen: GPT-4o, Gemini 2.5 Pro, Claude 3.7 Sonnet

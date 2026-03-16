@@ -1,0 +1,234 @@
+\documentclass[letterpaper,10pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{fancyhdr}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage[T1]{fontenc}
+\usepackage[default]{sourcesanspro}
+
+% -------------------- PLACEHOLDER NOTES --------------------
+% Replace bracketed placeholders like [N], [X%], [p95] with your real numbers.
+% Sentient: (# tasks in eval set, metrics, reliability improvements, regressions caught)
+% 4mainstreet: (dataset scale, eval metric, compute optimisation % cost/runtime)
+% HVAC detector: (precision/recall or mAP, test set size, inference speed, failure modes fixed)
+% Sympli: (latency targets, hallucination rate checks, deployment details, usage numbers)
+
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\addtolength{\oddsidemargin}{-0.5in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1in}
+\addtolength{\topmargin}{-.55in}
+\addtolength{\textheight}{1.1in}
+
+\urlstyle{same}
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+\titleformat{\section}{
+  \vspace{-4pt}\centering\scshape
+}{}{0em}{}[\color{black}\titlerule\vspace{-5pt}]
+
+%-------------------- CUSTOM COMMANDS --------------------
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{#1} & #2 \\
+      \textit{\small#3} & \textit{\small #4} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.15in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[leftmargin=*]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-6pt}}
+
+\newcommand{\resumeSkillHeading}[1]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{0.97\textwidth}[t]{l}
+      \textbf{#1} \\
+    \end{tabular*}\vspace{-5pt}
+}
+
+%-------------------- START DOCUMENT --------------------
+\begin{document}
+
+%----------- HEADING -----------
+\begin{center}
+    {\LARGE Neil Tripathi} \\ \vspace{2pt}
+    San Francisco, CA \,|\, (929) 476-5255 \,|\, \href{mailto:neiltripathi93@gmail.com}{neiltripathi93@gmail.com} \\
+    \href{https://github.com/neilt93}{github.com/neilt93}
+    \,|\, \href{https://website-mauve-nine-60.vercel.app/about}{website-mauve-nine-60.vercel.app} \,|\,
+    \href{https://www.linkedin.com/in/neil-tripathi-001b50300/}{linkedin.com/in/neil-tripathi-001b50300} \\
+\end{center}
+
+%----------- EDUCATION -----------
+\section{Education}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {New York University}{Sep 2022 -- Dec 2025}
+    {B.A. Computer Science, Minor: Mathematics, GPA: 3.77/4.00}{New York, NY}
+  \resumeItemListStart
+    \resumeItem{Dean's List (2023--2024, 2024--2025). Coursework: ML, AI, NLP, algorithms, operating systems, cryptography, databases.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {St Olave's Grammar School}{Sep 2016 -- Jun 2022}
+    {A levels: Mathematics, Further Mathematics, Computer Science, Physics (A* in each)}{London, UK}
+
+\resumeSubHeadingListEnd
+
+%----------- RESEARCH & PUBLICATIONS -----------
+\section{Research \& Publications}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Benchmarking Commonsense Visual Reasoning for Vision-Language Models}{2025}
+    {Co-author with Prof. Ernest Davis (NYU); submitted to arXiv, 2026}{}
+  \resumeItemListStart
+    \resumeItem{Designed a visibility-reasoning benchmark (100 families, 300 headline cells, 2$\times$2 XOR design) with automated graders and scoring.}
+    \resumeItem{Evaluated 9 VLMs across three tiers (flagship, prior-gen, open-source); surfaced a 26\% abstention rate in GPT-5 as key finding.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {Legal Text Classification with BERT and LegalBERT}{2024}
+    {Co-author; Natural Language Processing course project (NYU)}{}
+  \resumeItemListStart
+    \resumeItem{Fine-tuned BERT-family models on legal corpora; compared against classical baselines with reproducible training and reporting.}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%----------- EXPERIENCE -----------
+\section{Experience}
+\resumeSubHeadingListStart
+
+  \resumeSubheading
+    {Sentient Labs}{May 2025 -- Aug 2025}
+    {AI Product \& Research Intern}{New York City, NY (Hybrid)}
+  \resumeItemListStart
+    \resumeItem{Built an internal evaluation suite of 100+ LLM prompts with automated scoring for tool-call correctness and safety-violation rate.}
+    \resumeItem{Improved feedback-to-ticket latency by ~20\% via regression harness and iteration notes; shipped 3 tool integrations with engineers.}
+    \resumeItem{Built a real-time crypto signals dashboard (2--3k lines backend TS, ~1k lines frontend React) with latency under 2s for exchange data.}
+    \resumeItem{Prototyped 'Dobby Mode' agent (300-line Streamlit demo) using Dolphin Mistral; enforced JSON schema to reduce hallucinations.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {New York University}{Jan 2025 -- May 2025}
+    {Teaching Assistant, Database Design}{New York City, NY}
+  \resumeItemListStart
+    \resumeItem{Led recitations on SQL, MongoDB, Flask/Jinja, and schema design; supported 50+ students via office hours and grading.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {4mainstreet.ai}{May 2024 -- Aug 2024}
+    {ML and Full-Stack Intern}{Fremont, CA (Remote)}
+  \resumeItemListStart
+    \resumeItem{Built data pipelines for customer voice + text (4,000 records); integrated outputs into a Flutter front-end.}
+    \resumeItem{Built an evaluation harness to benchmark Llama 3 8B, Gemini, and GPT-class models on 4,000 labeled examples; computed precision/recall/F1 and surfaced failure modes to guide model selection.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {Scroll.io}{May 2023 -- Aug 2023}
+    {Software Engineering Intern (Blockchain and Data)}{New York City, NY (Remote)}
+  \resumeItemListStart
+    \resumeItem{Built a Discord analytics tool for a 20K+ community; automated ingestion into BigQuery and cut manual reporting by 5 hours/week.}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+
+%----------- PROJECTS -----------
+\section{Projects}
+\resumeSubHeadingListStart
+
+  \resumeSubheading{Physical.AI: Data-Driven Marketplace for Physical Ads}{Jan 2025 -- Present}{Co-Founder}{San Francisco, CA}
+  \resumeItemListStart
+    \resumeItem{Built Zillow-style discovery experience for physical ads on a map; achieved top 6 at YC W25 hackathon finals out of 100+ teams.}
+    \resumeItem{Integrated live \textit{attention score} using Caltrans PeMS traffic data to estimate OTS volume, dwell time, and impact by time of day.}
+    \resumeItem{Backend ingests ad placements, maps to nearby sensors, computes metrics against historical baselines, and surfaces ticker-style scores.}
+  \resumeItemListEnd
+  \resumeSubheading{Sympli, Voice-First Health Companion App}{Aug 2025 -- Present}{Technical Co-Founder}{New York, NY}
+  \resumeItemListStart
+    \resumeItem{Built voice intake $\rightarrow$ clinician-style note pipeline (ASR + summarization) with latency under 1 minute; added end-to-end instrumentation.}
+    \resumeItem{Deployed HIPAA-aware AWS stack (TypeScript + Postgres + self-hosted LLM); shipped an alpha to 20 users (100+ sessions).}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {1:72 Scale HVAC Assembly Part Counter}{Jun 2025 -- Present}
+    {Computer Vision Developer (Contract)}{New York City, NY}
+  \resumeItemListStart
+    \resumeItem{Trained an object detector across 14 part classes; achieved 95\% accuracy on a 1,200-image test set; delivered an iOS app for part counting.}
+    \resumeItem{Improved robustness to lighting variance and motion blur; fixed 12 failure modes and optimised latency to under 5s on iPhone 16 Pro.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+    {Transformer Language Model from Scratch}{2025}
+    {Personal Project}{}
+  \resumeItemListStart
+    \resumeItem{Implemented a Transformer LM in PyTorch; trained on an anonymised corpus (2.6M tokens) and reached validation perplexity 15.}
+  \resumeItemListEnd
+
+  \resumeSubheading
+  {TAP-Score (Push-T OOD Detection)}{Jan 2026 -- Present}
+  {Personal Project}{}
+\resumeItemListStart
+  \resumeItem{Replicated Diffusion Policy on Push-T; built TAP-Score to rate (obs, action-chunk) pairs using demo positives + shuffled/noisy negatives.}
+  \resumeItem{Tested OOD detection under brightness/noise/occlusion; reporting AUROC and clean false-alarm rate with score traces.}
+\resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%----------- TECHNICAL SKILLS -----------
+\section{Technical Skills}
+\resumeSubHeadingListStart
+
+  \resumeSkillHeading{Languages}
+  \resumeItemListStart
+    \resumeItem{Python, TypeScript, SQL, Java, Rust, C}
+  \resumeItemListEnd
+
+  \resumeSkillHeading{Machine Learning}
+  \resumeItemListStart
+    \resumeItem{PyTorch, TensorFlow, object detection, data augmentation, LLM fine-tuning, evaluation pipelines, prompt design, agent tool use}
+  \resumeItemListEnd
+
+  \resumeSkillHeading{Data \& Cloud}
+  \resumeItemListStart
+    \resumeItem{Postgres, MongoDB, BigQuery, Supabase, AWS, Docker, REST APIs}
+  \resumeItemListEnd
+
+\resumeSubHeadingListEnd
+
+%----------- LANGUAGES -----------
+\section{Languages}
+\resumeItemListStart
+  \resumeItem{English (fluent), Hindi (fluent), Spanish (intermediate), French (basic)}
+\resumeItemListEnd
+
+%----------- OTHER INTERESTS -----------
+\section{Other Interests}
+\resumeItemListStart
+  \resumeItem{Competitive gaming (usually top ~2,000 globally in \textit{Clash Royale}, Grand Champion III in \textit{Rocket League}, peaked at rank 598 in \textit{Marvel Rivals}), the gym, and sports like football, rugby, badminton, table tennis, and fives.}
+\resumeItemListEnd
+
+\end{document}

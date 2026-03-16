@@ -14,6 +14,7 @@ Evaluate robustness of 3D U-Net dose prediction model for head-and-neck radiothe
 - [x] Re-run inference on RunPod for new levels (16 new conditions, 40 patients each)
 - [x] Update Report 2 with finer-level results and regenerated figures
 - [ ] Send updated Report 2 to Birjoo
+- [x] Blog post: CT perturbation robustness findings 📅 2026-03-03
 
 ## Notes
 

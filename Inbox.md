@@ -1,8 +1,6 @@
-- [ ] Check agent flow works (Sympli)
-- [ ] Travel to NYC 📅 2026-02-28
 - [ ] TAP Score
 - [ ] Profs email
-- [ ] Find events
-- [ ] Connect w Ahmed (via Arpit)
+- [x] Connect w Ahmed (via Arpit)
 - [ ] Register for HAX Deep Tech Showcase (April 1, NYC) 📅 2026-04-01
 - [ ] Review accelerator shortlist → [[Startup-Accelerators-and-Fundraising]]
+- [x] Reply to 4mainstreet.ai about standalone project — book a meeting

@@ -1,61 +1,74 @@
 ---
-status: active
+status: on-hold
 ---
 
 ## Goal
 
-Real-time animated talking-head mirror — see your own face animated in real-time, speaking LLM responses in your cloned voice. Browser UI on Mac, heavy ML on a GPU (Vast.ai or local NVIDIA).
+Real-time animated talking-head mirror — see your own face animated in real-time, speaking LLM responses in your cloned voice. Local-first on RTX 4080.
 
 ## Architecture
 
 ```
-Browser (Mac)  ←WebSocket→  Node.js API Server  ←HTTP→  Python GPU Service (NVIDIA)
-                             (orchestrator,               (STT, TTS, face animation)
-                              memory, chat)
+CLI (TypeScript)  →  Ollama LLM  →  XTTS v2 TTS  →  Face Animation  →  PyGame Display
+                     (dolphin-mistral /                (SadTalker or
+                      llama3.1:8b)                      GaussianTalker)
 ```
+
+Backend switchable via `LIPSYNC_BACKEND` env var (`sadtalker` or `gaussian`).
+
+## Current Status
+
+**SadTalker pipeline works end-to-end** but is the bottleneck: 10.8 fps render (needs 25 fps for realtime). TTS and LLM are fast.
+
+**GaussianTalker integration code complete** (March 2026) — all files written, CUDA kernels compiled, engine wired in. Waiting on capture video to preprocess, train, and benchmark.
 
 ## Tasks
 
-### Phase 1: GPU Service (Python)
-- [x] Create gpu-service/ directory structure, Dockerfile, requirements.txt
-- [x] Implement STT model wrapper (Faster-Whisper large-v3)
-- [x] Implement TTS model wrapper (Coqui XTTS v2 with voice enrollment)
-- [x] Implement animator wrapper (SadTalker with 3DMM caching + ffmpeg fallback)
-- [x] Implement FastAPI routers (stt, tts, animate, onboard, health)
-- [x] Create download_models.py for baking weights into Docker image
-- [ ] Build and push Docker image to registry
-- [ ] Test standalone: curl /tts → valid WAV, curl /animate → valid MP4
+### Avatar v1: SadTalker (complete)
+- [x] SadTalker lip sync engine with XTTS v2 voice clone
+- [x] FastAPI server (port 9876) + PyGame display window
+- [x] Sentence-chunked TTS+render for streaming feel
+- [x] Compatibility fixes (PyTorch 2.7, numpy, torchvision, transformers, ffmpeg on Windows)
+- [x] Benchmark harness (`avatar/benchmark.py`)
 
-### Phase 2: Node.js API Server
-- [x] Create gpu-client.ts (HTTP client for GPU service)
-- [x] Create streaming.ts (sentence splitter + TTS→animate pipeline)
-- [x] Create Fastify server with WebSocket + REST routes
-- [x] Create bin/server.ts entry point (init orchestrator, start Fastify)
-- [x] Add routes: chat (WS), memories, photos, health
-- [x] Add Fastify deps to package.json, new types to src/types.ts
-- [ ] Test: WebSocket text in → video chunks out
+### Avatar v2: GaussianTalker (code complete, needs data)
+- [x] Plan and design 7-phase integration
+- [x] Create `avatar/gaussian/` package (setup, preprocess, train, engine)
+- [x] Install CUDA Toolkit 12.8, compile diff-gaussian-rasterization + simple-knn
+- [x] Clone GaussianTalker repo with submodules
+- [x] Write `GaussianTalkerEngine` matching actual vendor API (render_from_batch, Camera objects, ModelHiddenParams)
+- [x] Wire backend switch into config.py, server.py, lipsync/__init__.py, benchmark.py
+- [ ] Record ~15 min capture video (1080p, 60fps, tripod, even lighting)
+- [ ] Preprocess: `python avatar/gaussian/preprocess.py --input data/avatar/capture/neil_capture.mp4`
+- [ ] Smoke train: `python avatar/gaussian/train.py --max-frames 1500 --iters 2000`
+- [ ] Full train: `python avatar/gaussian/train.py` (~4-6 hours on RTX 4080)
+- [ ] Test: `set LIPSYNC_BACKEND=gaussian` and run server
+- [ ] Benchmark: compare against SadTalker's 10.8 fps baseline (target: 50-80 fps)
 
-### Phase 3: Browser UI (React + Vite)
-- [x] Scaffold web/ with Vite + React 18 + TypeScript
-- [x] Build AvatarCanvas (video queue) + useVideoQueue hook
-- [x] Build useWebSocket hook with auto-reconnect
-- [x] Build ChatInput + MicButton + useAudioCapture (VAD)
-- [x] Build SubtitleOverlay + CitationPanel
-- [x] Build OnboardingWizard (photo upload + voice recording)
-- [x] Build MemoryPanel + SettingsPanel
-- [ ] Run `npm install` and `npm run build` in web/
-- [ ] End-to-end test in browser
+### Earlier Phases (complete)
+- [x] GPU service structure (STT, TTS, animator FastAPI routers)
+- [x] Node.js API server (WebSocket, REST, streaming pipeline)
+- [x] Browser UI (React + Vite, video queue, onboarding, memory panel)
+- [x] Cloud deployment provisioner (Vast.ai)
 
-### Phase 4: Cloud Deployment
-- [x] Create VastAiGpuService provisioner (vastai-gpu-service.ts)
-- [ ] Build + push Docker image for GPU service
-- [ ] Test GPU_AUTO_PROVISION mode on Vast.ai
-- [ ] Test: `npm run serve` on Mac, GPU auto-provisions on Vast.ai
+## Key Files
+
+| File | Purpose |
+|---|---|
+| `avatar/server.py` | FastAPI server, backend-conditional engine import |
+| `avatar/config.py` | `LIPSYNC_BACKEND`, `GAUSSIAN_MODEL_DIR` config |
+| `avatar/lipsync/sadtalker_engine.py` | SadTalker engine (current default) |
+| `avatar/gaussian/engine.py` | GaussianTalker engine (drop-in replacement) |
+| `avatar/gaussian/preprocess.py` | Video → dataset pipeline (9 stages) |
+| `avatar/gaussian/train.py` | Training launcher (RTX 4080 defaults) |
+| `avatar/gaussian/setup_gaussian.py` | Environment setup automation |
+| `avatar/benchmark.py` | Backend-aware benchmark harness |
 
 ## Notes
 
 - All code lives in `Digital-persona/` — existing CLI, orchestrator, memory, and models are untouched
-- ML models: Faster-Whisper (~3GB VRAM), XTTS v2 (~2GB), SadTalker (~4GB) — fits on 16GB+ GPU
-- TypeScript compiles clean, 63/64 existing tests pass (1 pre-existing timing flake)
-- Estimated time to first avatar frame on RTX 4090: ~4.3s (STT 500ms + LLM 1.5s + TTS 300ms + SadTalker 2s)
-- Start server with `npm run serve`, dev UI with `cd web && npm run dev`
+- ML models: XTTS v2 (~2GB VRAM), SadTalker (~4GB), GaussianTalker (TBD, gradient checkpointing enabled for 16GB)
+- CUDA Toolkit 12.8 installed at `C:\Program Files\NVIDIA GPU Computing Toolkit\CUDA\v12.8`
+- GaussianTalker vendor code at `avatar/vendor/GaussianTalker/`
+- Run with: `npx tsx bin/mirror.ts --model ollama:dolphin-mistral --avatar`
+- Project is on hold per March 2026 priorities (job search, TAP-Score, Davis paper come first)
