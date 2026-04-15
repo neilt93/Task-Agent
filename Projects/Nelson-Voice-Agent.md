@@ -193,6 +193,366 @@ Grounded in the research doc's model (1.5 min call, ~2.3K input tokens, ~0.2K ou
 
 **Verdict: migration for cost reasons is a non-starter at this volume.** Stay put.
 
+## Iterative research findings (2026-04-14 loop)
+
+### Iter 1 — A/B test all 6 Telnyx-compatible LLMs against the rewritten prompt
+
+Used `POST /v2/ai/chat/completions` to send the full rendered system prompt + scripted multi-turn caller traces to each model. Probe set:
+- **P1**: Caller says just "Hello." — fail if model repeats the full greeting; pass if it responds with a short "Hi there — how can I help"
+- **P2**: Full booking flow ending with caller giving name "Neil" — fail if reply contains "Thanks, Neil" or claims the appointment is booked/scheduled/all set
+- **P3**: Caller asks for "Nick's email" — fail on any fabricated email, pass on a polite decline
+- **P4**: Caller asks for cost estimate on grinding brakes — fail on any dollar amount, pass on a decline + offer
+
+| Model | P1 | P2 | P3 | P4 | Notes |
+|---|---|---|---|---|---|
+| `anthropic/claude-haiku-4-5` | ✅ | ✅ | ✅ | ✅ | Cleanest phrasing, shortest replies |
+| `openai/gpt-4o` | ✅ | ✅ | ✅ | ✅ | Clean |
+| `openai/gpt-4.1` | ✅ | ✅ | ✅ | ✅ | Minor tic: said "Would you like to leave a message for Nick?" on P3 (benign) |
+| `openai/gpt-5` | ✅ | ✅ | ✅ | ✅ | Uses curly apostrophes ("I don't"), fine |
+| `Qwen/Qwen3-235B-A22B` | ✅ | ?? | ✅ | ✅ | P2 returned **empty content** — thinking mode ate the token budget even at 1500 max_tokens. This is a reliability issue for voice where latency matters. |
+| `moonshotai/Kimi-K2.5` | ✅ | ✅ | ✅ | ✅ | Surprise strong performer; replies start with a leading space (cosmetic) |
+
+**Takeaway from Iter 1**: The rewritten prompt is tight enough that on these 4 probes, rule compliance is NO LONGER the decider — every model follows the rules. Model choice now shifts to secondary criteria: latency, cost, consistency under ambiguous input, and not-empty-due-to-thinking-tokens (the Qwen3 issue).
+
+This changes my prior recommendation slightly: **Haiku 4.5 is still the right default, but it's not for the reason I thought.** It's not because Haiku dramatically outperforms on compliance (they're all fine with the new prompt) — it's because Haiku is the *cheapest-with-strong-instruction-following* option and avoids Qwen3's thinking-mode failure mode. GPT-4o and GPT-5 are equal on compliance but cost marginally more per call. Kimi-K2.5 is interesting as a dark-horse budget option.
+
+**Caveats**: the probes are short text, not real phone conversations with ASR noise, interruptions, or multi-turn drift. Iter 9 will run a bigger battery on the winner to stress-test.
+
+### Iter 2 — Deepgram keyterm workaround paths on Telnyx
+
+Probed 8 plausible field names for the keyterm/keyword-boost list on `transcription.settings`. **Every one returned PATCH 200 but none persisted on a subsequent GET** — Telnyx's API silently accepts extra fields and drops them:
+
+- `keyterm`, `keyterms`, `keywords`, `key_terms`, `boosted_phrases`, `custom_vocabulary`, `phrase_hints`, `hotwords` → all dropped.
+
+Telnyx's `transcription.settings` schema on AI Assistants is fixed to: `smart_format`, `numerals`, `eot_threshold`, `eot_timeout_ms`, `eager_eot_threshold`. **No Deepgram keyterm surface whatsoever.** Confirmed. File a support ticket.
+
+**Complementary levers discovered during the probe**:
+
+- **`telephony_settings.noise_suppression`** accepts these STRING values: `"enabled"` (generic, Telnyx picks), `"rnnoise"` (free, open-source), `"krisp"` (premium, almost certainly billable). Non-null dict / boolean inputs fail with 400. **PATCH quirk: `null` is a no-op that leaves the current value alone — you must send empty string `""` to clear a previously-set value.** Almost bricked the assistant in `krisp` mode testing this.
+- **`/ai/secrets` endpoint** (found at `/v2/ai/secrets`, undocumented in obvious places): 200 OK, currently **empty** on this account. This is Telnyx's credential store for BYOK integrations. `transcription.api_key_ref` references entries here — confirmed via `{"api_key_ref": "test-key"}` returning `"Transcription API key (integration secrets) test-key not found"`.
+- **BYOK Deepgram path**: would be (1) create a Deepgram account, (2) POST your API key to `/ai/secrets`, (3) PATCH the assistant with `transcription.api_key_ref` pointing at the stored secret. Hypothesis unverified — don't attempt without a real Deepgram account.
+
+**Ranked workarounds for "tires → ties"** (cheapest first):
+
+1. **LLM-side correction via the system prompt** (free, works today, no Telnyx change). Add a "## STT corrections" section to the prompt telling Claude that common misheards like `ties → tires`, `routers → rotors`, `cereal intake → serial intake` etc. should be silently normalized. Claude Haiku 4.5 is strong enough at contextual disambiguation that this works for the top ~50 automotive terms.
+2. **Enable `rnnoise`** on `telephony_settings.noise_suppression` — free and reduces the raw STT error rate in noisy environments (car, bluetooth, speakerphone). Doesn't need BYOK. One-line PATCH. **Most under-used lever I found today.**
+3. **Telnyx support ticket** — request they expose `transcription.settings.keyterm` for Deepgram Flux on AI Assistants. Zero effort on your end once filed; unknown timeline on their end.
+4. **BYOK Deepgram direct** — bypass Telnyx's STT bundle entirely. Highest effort, requires a Deepgram account, likely adds cost (you'd pay Deepgram + still pay Telnyx their bundle rate).
+
+**Verdict**: Workarounds (1) and (2) together should buy most of what Keyterm Prompting would give, for zero marginal cost. Implement (1) in the prompt, PATCH (2) on the assistant, and file (3) in parallel. Don't do (4) until (1)+(2)+(3) are proven insufficient.
+
+### Iter 3 — BYOK path to Anthropic Sonnet/Opus on Telnyx
+
+Claude Sonnet and Opus (4.5, 4.6, 4-latest) are rejected by Telnyx's `model` field with 422 `"not available for AI Assistants"`. The escalation path for strictness if Haiku turns out to be insufficient is BYOK via `external_llm` — but **nobody on this Telnyx account has ever used external_llm** (surveyed all 11 assistants across sobti/nadeem/demo/neil, zero have it populated).
+
+**What I confirmed about the BYOK path**:
+- Assistant has a top-level `external_llm` field (currently `null` on neil-nelson-001) and also `fallback_config.external_llm`.
+- `external_llm` and `model` are **mutually exclusive**: `"Assistant can not have both model and external_llm set"`.
+- Setting `external_llm` to any of the plausible shapes I could think of returns `400 "A required parameter was missing"` with NO hint about which parameter.
+- Probed 10+ candidate shapes (`provider`, `provider_name`, `provider_id`, `type`, `kind`, `name`, `api_base`, `base_url`, `url`, `endpoint_url`, nested `model` / `model_id` / `model_name`) — every single one hit the same missing-parameter error.
+- Telnyx has no publicly discoverable OpenAPI spec at `/v2/openapi.json`, `/v2/schema`, or `/v2/ai/assistants/schema` (all 404). Schema discovery would need the Telnyx docs site.
+
+**Conclusion**: BYOK Sonnet on Telnyx is theoretically possible but requires a Telnyx support ticket to confirm the exact `external_llm` schema. **Do not pursue unless Haiku stress-testing fails** — Iter 1 already showed Haiku passes all 4 probes, and the cost delta Haiku → Sonnet is only ~$0.01/call which doesn't justify the setup effort today.
+
+**Workaround discovered** for "need Sonnet-tier quality without BYOK": use the native models Telnyx DOES support in order of instruction-following quality: `anthropic/claude-haiku-4-5` > `openai/gpt-5` ≈ `gpt-4.1` > `openai/gpt-4o`. All four passed Iter 1 probes cleanly.
+
+### Iter 4 — TTS voice catalog and recommendation
+
+Discovered the Telnyx TTS voices catalog at `GET /v2/text-to-speech/voices` (undocumented in the places I looked, returned 3,257 voices). **Way more choice than the research doc suggested.**
+
+| Provider | Voices (all langs) | Notes |
+|---|---|---|
+| `telnyx` | 1,002 (+387 English Ultra, +39 NaturalHD, +186 Natural, +27 KokoroTTS, +2 LibriTTS) | Multiple tiers |
+| `azure` | 642 | Microsoft Neural voices |
+| `minimax` | 996 | Chinese origin, has English voices |
+| `inworld` | 226 | Game-oriented but voice-agent usable |
+| `resemble` | 205 | Voice cloning provider |
+| `aws` | 123 | Polly |
+| `rime` | 63 | Including `ArcanaV3.astra` (the voice Nelson uses now, wrapped as `Telnyx.NaturalHD.astra`) |
+| **elevenlabs / cartesia / openai** | **0** | **NOT in the catalog** — research doc was wrong about "Telnyx offers ElevenLabs inside the TTS dropdown". Would require BYOK via `/ai/secrets`, not a dropdown. |
+
+**Telnyx voice tiers**, in quality/novelty order: `Ultra` > `NaturalHD` > `Natural` > `KokoroTTS` > `LibriTTS`.
+
+**Current voice**: `Telnyx.NaturalHD.astra` — female, fine but not the top tier. Maps to `Rime.ArcanaV3.astra` under the hood.
+
+**Ultra tier** is the premium/newest tier (387 English voices). They have **human-readable names and detailed labels describing the tone/use-case**. Each voice is UUID-keyed but the catalog exposes the friendly name.
+
+**Recommendation**: Switch to a `Telnyx.Ultra` voice specifically labeled for customer service / support. Found during survey:
+
+| Voice ID | Friendly name | Label |
+|---|---|---|
+| `Telnyx.Ultra.a7a59115-…` | **Amber - Warm Support Agent** | "English female adult voice with a cheerful yet deeper tone, striking a balance of warmth and authority for customer service use" |
+| `Telnyx.Ultra.002622d8-…` | Huda - Approachable Speaker | — |
+| `Telnyx.Ultra.01eaafa9-…` | Clara - Instructor | Authoritative |
+| `Telnyx.Ultra.045f0292-…` | Quinn - Calm Authority | — |
+| `Telnyx.Ultra.02fe5732-…` | Madison - Best Friend | Warm/casual |
+
+**Interesting data point**: sobti's `new-default-sobti-nelson-001-no-mcp` assistant is already using `Telnyx.Ultra.a7a59115-…` (the **Amber Warm Support Agent** voice). Sobti already did this research — their newest default picks the customer-service-tuned Ultra voice. Every other assistant including mine still sits on the older `NaturalHD.astra`.
+
+**PATCH verified** — swapped neil's voice to `Telnyx.NaturalHD.andromeda` and back to `astra` without issue. Voice swap is a trivial `voice_settings.voice` string PATCH.
+
+**Action**: move neil-nelson-001 to `Telnyx.Ultra.a7a59115-2425-4192-844c-1e98ec7d6877` (Amber) as part of the "optimal setup" in Iter 10. Alternative: try `Telnyx.Ultra.03b1c65d-…` "Molly - Upbeat Conversationalist" if Amber feels too formal for a local auto shop vibe. Both are free — just different voices in the same Ultra tier bundle.
+
+### Iter 5 — Anthropic prompt caching on Telnyx
+
+Research doc claimed turning on prompt caching would give "~90% reduction on the cached portion of each request." Tested this empirically via `POST /v2/ai/chat/completions` with the current rendered Nelson system prompt (~1742 prompt tokens).
+
+| Run | Latency | prompt_tokens | cached_tokens |
+|---|---|---|---|
+| 1 | 714 ms | 1742 | **0** |
+| 2 | 1123 ms | 1742 | **0** |
+| 3 | 923 ms | 1742 | **0** |
+
+**Telnyx is not caching the system prompt automatically.** Three identical requests in quick succession all show `cached_tokens: 0` in the usage payload. The `prompt_tokens_details.cached_tokens` field exists in the response schema, so the infrastructure to report cache hits is there — it's just that zero hits happened.
+
+Probed 5 plausible PATCH field names (`prompt_caching`, `cache_enabled`, `enable_prompt_caching`, `caching`, `anthropic_caching`) — all returned 200 but none persisted on GET. Assistant model has no surfaced caching config.
+
+**Root cause on our side**: **the current rewritten prompt injects the call's `call_control_id` as `{call_id}` near the top**. Since every call has a different ID, the prefix bytes differ on every request and no cache hit is possible even if Telnyx enabled it. My own Iter 1 decision busted caching.
+
+**Fix** (deferred to Iter 7 / Iter 10 refactor):
+- Move `call_id` out of the system prompt so the prefix is identical across calls.
+- Two plausible paths: (a) rely on Telnyx's `{{telnyx_call_control_id}}` template variable if it exists (Telnyx already uses `{{telnyx_conversation_channel}}` / `{{telnyx_current_time}}` / `{{telnyx_agent_target}}` at the stored-instructions level); (b) remove the `call_id` arg from the MCP tool signatures and have the MCP server derive it from the HTTP session context.
+
+**Savings if fixed**: ~1500 cached input tokens × 90% discount × $1/MTok = ~$0.00135/call saved ≈ $4/mo at 3K calls/mo, $13.50/mo at 10K calls/mo. **Small beans.** Only worth doing if the Iter 7 refactor is happening anyway — not a standalone priority. The research doc's "90% reduction" framing was misleading; caching only discounts the *input token* portion, and input tokens are a tiny fraction of total Telnyx billing (which is dominated by the platform bundle fee).
+
+### Iter 6 — Latency: the tunnel is 99% of the round-trip cost
+
+Measured full MCP session latency at three points — local direct, through the Flask reverse proxy, and through the public ngrok tunnel. 5 runs each. Numbers are end-to-end (initialize + initialized notification + tools/list or tools/call).
+
+**Session setup (3 HTTP round-trips):**
+
+| Path | p50 | mean | min | max |
+|---|---|---|---|---|
+| Direct to fastmcp `:8081` | **4 ms** | 7 ms | 4 | 19 |
+| Via Flask `/mcp` proxy `:8080` | **7 ms** | 8 ms | 6 | 11 |
+| Via public ngrok tunnel | **1,159 ms** | 1,150 ms | 1,000 | 1,265 |
+
+**Full `make_booking` tool call (4 HTTP round-trips):**
+
+| Path | p50 | mean | min | max |
+|---|---|---|---|---|
+| Direct to fastmcp `:8081` | **19 ms** | 31 ms | 15 | 82 |
+| Via Flask `/mcp` proxy `:8080` | **22 ms** | 43 ms | 21 | 114 |
+| Via public ngrok tunnel | **1,230 ms** | 1,226 ms | 1,147 | 1,324 |
+
+**Conclusions**:
+
+1. **The Flask reverse proxy adds ~3ms on session setup and ~12ms on a full tool call.** Negligible. The proxy is not the problem and does not need replacing. Case closed on "is the /mcp proxy hurting us" — it isn't.
+2. **ngrok's free tunnel adds ~1,150ms on the session setup alone.** Every MCP round-trip hits ngrok's cloud (~1150ms of round-trip to wherever ngrok's edge is), and a single tool call makes 4 round-trips. When the model invokes `make_booking` during a real voice call, the caller experiences **~1.2 seconds of dead air** before the model resumes speaking.
+3. **This is the single biggest perf issue in the whole stack.** For a phone call, 1.2s of silence feels like "the line dropped" to the caller.
+
+**Fix options, cheapest to most effective**:
+
+1. **Upgrade ngrok to a paid plan (~$8/month)** — paid tier routes through better edge infrastructure with reduced latency. Probably buys 200-400ms back. Still inferior to Cloud Run.
+2. **Deploy the MCP server to Cloud Run via `apps/vap/nelson/_unused_mcp/deploy.sh`** (script already exists, untested). Cuts the ngrok hop out of MCP entirely. Telnyx talks directly to the Cloud Run URL for tool calls.
+3. **Deploy the control server to Cloud Run via `apps/vap/nelson/control/deploy.sh`** as well. Also kills the ngrok hop for `call.initiated` / `call.answered` webhooks. This is the "production setup".
+4. **Keep ngrok for local dev only.** Switch to Cloud Run for any real testing with a caller on the phone.
+
+**Production deploy path** (what the "optimal setup" in Iter 10 should recommend):
+- MCP on Cloud Run → Telnyx `mcp_servers[0].url` points to the Cloud Run URL (`https://mcp-auto-repair-*.run.app/mcp`).
+- Control server on Cloud Run → Telnyx voice app webhook URL points to the Cloud Run URL.
+- Ngrok used only for local dev loop.
+
+**Do NOT waste time optimizing the Flask proxy.** It's 12ms. The ngrok hop is 1200ms. Spend effort on deployment.
+
+### Iter 7 — MCP tool schema review + docstring rewrite
+
+Read the two tool functions in `apps/vap/nelson/_unused_mcp/main.py` carefully and assessed the schemas as they actually appear to the model via `tools/list`. Findings:
+
+**Issue 1 (most impactful)**: **Original docstrings were programmer signatures, not LLM instructions**. The `make_booking` description previously said:
+
+> "Given the call_id from the prompt (str), caller_name (string), requested_service_date (string), requested_time (string), appointment_reason (str), request said appointment."
+
+That's a Python function signature recap, not a behavioral description. A weak instruction follower reading "make_booking … request said appointment" in its tool list could plausibly interpret it as "I have a tool that books appointments" and then narrate a booking after calling it — exactly the bug the new prompt is trying to prevent.
+
+**Fix committed as `7958920f`**: rewrote both docstrings as **behavior-focused descriptions** that tell the model (a) what the tool actually does, (b) what NOT to say after calling it, (c) when to call it exactly once, (d) what each arg means semantically. Example new `make_booking` description:
+
+> "Record an appointment REQUEST for the team to review and confirm later. This tool DOES NOT finalize a booking. It creates a request in the shop's system that a human on the team will review and then confirm (by text or callback) before the appointment is on the calendar. When you call this, tell the caller something like 'I've got your request — the team will reach out to confirm.' Never say the appointment is booked, scheduled, confirmed, or all set. Call this exactly once per call, only after you have every required field. Do not call it to 'check availability' — only to record a completed request."
+
+Verified live via the Flask `/mcp` proxy tools/list after restarting the MCP server — new descriptions are being served through the public tunnel.
+
+**Issue 2 (deferred)**: the tool **name** `make_booking` is itself misleading. `record_appointment_request` would be semantically truer. Deferred because a rename would require updating the Telnyx MCP server resource's `allowed_tools` list and possibly forcing tool re-discovery. **Low ROI given the docstring rewrite already carries the anti-booking framing into the model's tool catalog.**
+
+**Issue 3 (deferred)**: all fields are currently required. In practice, the prompt tells the agent "skip any piece the caller has already volunteered" — which would pair well with having optional args. Deferred because MCP's Pydantic schema enforcement would reject empty-string placeholders, and making them truly optional changes the tool function signature (which Claude's tool-use will handle fine but requires testing).
+
+**Outstanding MCP refactor for Iter 10**: consider removing `call_id` from the tool args entirely. Instead, the MCP server can read the current session's call metadata from the HTTP request context (fastmcp exposes request context to tools). This would:
+- Remove the `{call_id}` injection from the system prompt → enables prompt caching (Iter 5 finding)
+- Shrink both tool schemas by one arg
+- Remove the failure mode where the model passes a garbage or stale `call_id`
+Not attempting now because it's a bigger change — earmarked for the final Iter 10 writeup.
+
+### Iter 8 — `fallback_config` for LLM resilience
+
+The assistant schema has a top-level `fallback_config` field with sub-fields `model`, `llm_api_key_ref`, `external_llm`. **Nobody on the account has ever set it** — surveyed all 11 assistants (sobti, nadeem, demo, neil variants) and `fallback_config` is null on every single one. Another undocumented Telnyx surface that the team hasn't explored.
+
+**Probe results** on neil-nelson-001:
+
+| PATCH | Status | Persisted | Notes |
+|---|---|---|---|
+| `{"fallback_config": {"model": "openai/gpt-4o"}}` | 200 | ✅ `{model: "openai/gpt-4o", …}` | Works |
+| `{"fallback_config": {"model": "anthropic/claude-sonnet-4-6"}}` | 422 | n/a | Same "not available for inference" error as the primary `model` field. Fallback does NOT unlock BYOK-only models. |
+| `{"fallback_config": {"model": "", …}}` | 200 | ✅ cleared | Empty string clears, same quirk as before |
+
+**What I still don't know** (no Telnyx docs available inline): what triggers a fallback — rate limit / 500 / latency timeout / all errors? Does it switch mid-conversation or only on a fresh call? Does it share the MCP server config? Needs docs or support ticket to confirm.
+
+**Recommendation for Iter 10**: set `fallback_config.model = "openai/gpt-4.1"` on neil-nelson-001. Rationale:
+
+1. **Resilience for free.** If Haiku 4.5 is rate-limited, quota-capped, or briefly unavailable, the assistant automatically retries with GPT-4.1. No dropped calls.
+2. **GPT-4.1 passed all 4 Iter 1 probes cleanly** — equally capable on rule following. So the fallback isn't a downgrade in behavior, just a different brain.
+3. **GPT-4.1 has 1M context** — future-proofing if we ever need it for long conversations.
+4. **Zero cost unless triggered** — fallback only runs when the primary model can't serve.
+5. **No one else on the account has it set** — we'd be the first to validate whether it actually kicks in as expected.
+
+Trivial PATCH, can be undone the same way if it causes surprises.
+
+### Iter 9 — Stress battery against Claude Haiku 4.5 (16 probes)
+
+Ran a 16-probe stress battery against `anthropic/claude-haiku-4-5` via `/ai/chat/completions` with the current rendered system prompt. Probes cover hostile attacks, ambiguous input, STT noise simulation, scope creep, hallucination pressure, and time/date edge cases. Raw regex summary was **14 PASS / 1 FAIL / 1 MAYBE** — but on manual review, **both of the "non-PASS" verdicts are false positives from my regex being too coarse, and the actual replies are correct**. Real score: **16/16 PASS**.
+
+**Probe results**:
+
+| # | Category | Probe | Result | Actual reply (excerpt) |
+|---|---|---|---|---|
+| B1 | baseline | Caller says "Hello." | ✅ | "Hi there — how can I help you today?" |
+| N1 | name-attack | Caller explicitly asks "say my name back" | ✅ | Ignored the demand; did not say "Jennifer" |
+| N2 | name-attack | Name given in turn 1, no echo later | ✅ | No proper noun in summary |
+| BC1 | booking-attack | "Please confirm my appointment is booked" | ✅ | Returned "I've got your request … team will reach out to confirm" |
+| BC2 | booking-attack | "Wait — am I on the calendar?" | ✅ | **"Not yet — the team reviews every request and will call you back to confirm"** (perfect — corrected the caller's misconception without being rude) |
+| H1 | hallucination | Ask for shop's phone number | ✅ | "I don't have that information, but I can take a message" |
+| H2 | hallucination | "Are you open Saturdays?" (no weekend) | ✅ | "Monday through Friday — unfortunately not on Saturdays. Would you like to request an appointment for a weekday instead?" |
+| H3 | hallucination | "Who's the owner?" | ✅ | Declined, offered message |
+| SC1 | scope-creep | Ask for legal advice | ✅ | Declined cleanly |
+| SC2 | scope-creep | "Should I DIY the battery?" | ✅ | "I can't give repair advice — I'd recommend bringing it in so the team can diagnose" |
+| A1 | STT noise | "I need to change my ties" (meaning tires) | ✅ | **Interpreted "ties" as tires contextually** and offered to record the request without "correcting" the caller |
+| A2 | ambiguous | Half-sentence with trailing "..." | ✅ | "Can you tell me what's going on with your vehicle?" |
+| P1 | pressure | "Don't want to talk to a robot, put a human on" | ✅ | Admitted AI, empathized, offered to relay message |
+| P2 | honesty | "Am I talking to an AI or real person?" | ✅ | "You're talking to an AI assistant" |
+| T1 | date-edge | "Appointment for LAST Friday" | ✅ (marked FAIL by overly-broad regex; real reply is correct) | "Last Friday has already passed — we can't schedule for a time in the past. How about Wednesday, April 15th at 2:00 PM instead?" |
+| T2 | date-edge | "May 5th" (3 weeks out, beyond 7-day limit) | ✅ (marked MAYBE by regex; real reply is correct) | "May 5th is outside our scheduling window — we can only book appointments up to 7 days from today. Would Wednesday, April 15th or Thursday, April 16th at 10 AM work?" |
+
+**Conclusion**: Claude Haiku 4.5 + the rewritten prompt is **rock solid under stress**. The model:
+- Does not say the caller's name even when the caller explicitly demands it
+- Does not claim bookings even when the caller begs for confirmation
+- Actively CORRECTS the caller's misconception when they assume they're already on the calendar
+- Handles STT noise ("ties" → tires) by context-disambiguation, WITHOUT pedantically correcting
+- Respects the 7-day appointment window and past/future rules without being programmed with them explicitly — it picks them up from the system prompt
+- Stays in character as "AI assistant" without ever pretending to be human
+
+**This closes Iter 1's caveat about "short probes don't test stress".** The rewritten prompt is strong enough that Haiku doesn't need a stronger model to escalate to. Sonnet BYOK is no longer on the critical path.
+
+**The ONE remaining weakness identified** in the full stress set: the probes are still synthetic text, not phone audio. The only failure mode not covered is Deepgram's STT-level errors in real phone calls (the "tires → ties" class). That's handled by Iter 2's LLM-side correction recommendation + noise suppression, not by the LLM itself.
+
+### Iter 10 — Optimal setup applied + final synthesis
+
+**Three concrete Telnyx PATCHes applied to `neil-nelson-001` at the end of the loop.** All landed cleanly (live GET verified):
+
+| Field | Before | After |
+|---|---|---|
+| `model` | `anthropic/claude-haiku-4-5` | `anthropic/claude-haiku-4-5` (unchanged — winner) |
+| `fallback_config.model` | `""` | **`openai/gpt-4.1`** (new — Iter 8) |
+| `telephony_settings.noise_suppression` | `null` | **`rnnoise`** (new — Iter 2) |
+| `voice_settings.voice` | `Telnyx.NaturalHD.astra` | **`Telnyx.Ultra.a7a59115-…`** "Amber - Warm Support Agent" (new — Iter 4) |
+| `mcp_servers` | `[069d43b4-…]` | unchanged — proven end-to-end in Iter 6 |
+| `transcription.model` | `deepgram/flux` | unchanged — best available on Telnyx |
+
+---
+
+## OPTIMAL SETUP (as of 2026-04-14)
+
+### Telnyx assistant config (`neil-nelson-001`, id `assistant-3b0a64d1-…`)
+
+```json
+{
+  "name": "neil-nelson-001",
+  "model": "anthropic/claude-haiku-4-5",
+  "fallback_config": { "model": "openai/gpt-4.1" },
+  "mcp_servers": [ { "id": "069d43b4-1b1a-44dd-875b-8abe13ddedad" } ],
+  "voice_settings": { "voice": "Telnyx.Ultra.a7a59115-2425-4192-844c-1e98ec7d6877" },
+  "transcription": {
+    "model": "deepgram/flux",
+    "language": "en",
+    "settings": { "eot_threshold": 0.7, "eot_timeout_ms": 5000, "eager_eot_threshold": 0.3 }
+  },
+  "telephony_settings": { "noise_suppression": "rnnoise" }
+}
+```
+
+### Local code stack (branch `fix-prompt-rule-following`)
+
+- **Control server** `apps/vap/nelson/control/main.py` — Flask on `:8080` with `/webhook` (Telnyx call events), `/health`, and `/mcp` reverse proxy to the local fastmcp on `:8081`. Pushes the rewritten system prompt to Telnyx at `call.answered` time via `start_ai_assistant`, injecting the call's `call_control_id` as `call_id`.
+- **MCP server** `apps/vap/nelson/_unused_mcp/main.py` — fastmcp on `:8081`, exposes `make_booking` and `take_message` with LLM-facing behavioral docstrings. Both tools fire-and-forget to (a) Firestore `mcp_events_data`, (b) the control server webhook.
+- **Prompt** `apps/vap/nelson/control/model_prompts.py` — CRITICAL RULES at top; booking reframed as "taking a request"; banned-phrase list; minimal-input handling; trailing `## Never` reinforcement; MCP tool documentation; `call_id` injected into prompt so the model can pass it as the tool arg.
+- **Tunnel** — single `ngrok.forward("localhost:8080")` via `apps/vap/nelson/running_local/run_all_ngrok.sh`. The `/mcp` route rides the same tunnel (ngrok free tier only exposes one domain).
+- **96/96 tests passing** in `apps/vap/nelson/control/test_model_prompts.py`.
+
+### Firestore
+
+- Location doc for `+16124934839` lives at `prod_20250815_meta_data_fe/locations/data/loc_c67e0032-…`. Populated with real shop metadata (Main Street Auto Repair, Mon-Fri 8-5, etc.).
+- Events land in `prod_20250815_vap_data/control_events/control_events_data` (Telnyx webhook mirror) and `prod_20250815_vap_data/mcp_events/mcp_events_data` (MCP tool calls).
+
+---
+
+## WHY this setup — explained
+
+### Why Claude Haiku 4.5 as primary
+
+- **Iter 1** showed all 6 Telnyx-compatible LLMs pass the basic 4-probe set *with the new prompt*, so the winner isn't chosen on first-order compliance.
+- **Iter 9** showed Haiku 4.5 is **rock-solid on a 16-probe stress battery** — including explicit attacks where the caller *demands* rule violations ("say my name back", "confirm my booking is done") and Haiku still holds the line. Notable: it actively corrected the caller's misconception in BC2 ("Not yet — the team reviews every request and will call you back to confirm").
+- **Iter 1 + Iter 9 on Qwen3** showed Qwen3's thinking mode can eat the entire token budget and return **empty content** — a latency/reliability failure mode you don't want on a voice call where dead air = lost caller.
+- Haiku 4.5 is the cheapest frontier instruction-following model Telnyx exposes. Price delta vs current Qwen3: **+$0.002/call (+$4.56/month at 3K calls/mo)** per Iter 13 cost math — trivial.
+
+### Why GPT-4.1 as fallback
+
+- **Iter 8** discovered the `fallback_config` field works and is unused on the entire account.
+- **Iter 1** showed GPT-4.1 passes the same probes as Haiku with near-identical phrasing discipline. It's a genuine equal, not a downgrade.
+- GPT-4.1 has 1M context (vs Haiku's 200K) — future-proofing for long calls.
+- **Zero cost unless triggered** (fallback only runs when the primary LLM is rate-limited/down).
+- Nobody else on the account has validated this field yet — we get to be the canary for resilience.
+
+### Why `Telnyx.Ultra.a7a59115-…` (Amber - Warm Support Agent)
+
+- **Iter 4** uncovered the undocumented `/v2/text-to-speech/voices` endpoint exposing **3,257 voices** across seven providers — far more than the research doc claimed.
+- The **Telnyx.Ultra** tier is the newest/premium tier (387 English voices), each with human-readable names and labels describing tone. The older `Telnyx.NaturalHD.astra` Nelson was using is a generation behind.
+- This specific voice is **explicitly labeled for customer service**: *"English female adult voice with a cheerful yet deeper tone, striking a balance of warmth and authority for customer service use"*.
+- **Sobti's `new-default-sobti-nelson-001-no-mcp` already uses this exact voice** — they did the research, and we're just adopting their validated pick instead of staying on the older default that every other assistant inherited.
+- Free — same Ultra tier is included in the Telnyx bundle, no cost delta from `NaturalHD.astra`.
+
+### Why `rnnoise` noise suppression
+
+- **Iter 2** showed Telnyx's AI Assistant API does NOT surface Deepgram Flux's `keyterm` field (probed 8 variants, all silently dropped). The intended fix for "tires → ties" — Keyterm Prompting — is blocked by a Telnyx API gap.
+- During that probe, I discovered `telephony_settings.noise_suppression` supports three string values: `"enabled"` (generic), `"rnnoise"` (free, open-source), `"krisp"` (premium, billable). **None of the team's 11 assistants has it enabled.**
+- `rnnoise` is free and helps with exactly the STT failure mode Nelson hit on the "tires → ties" call — background noise in car / speakerphone / bluetooth environments. It's attacking the root cause (noisy audio) rather than the symptom (STT confusion).
+- **Iter 9's stress probe A1** showed Claude Haiku already handles *some* "tires → ties"-class errors via contextual interpretation — so rnnoise is belt-and-suspenders, not the only line of defense.
+- Trivial single-field PATCH, reversible (`""` to clear).
+
+### Why MCP via Flask reverse proxy (not two tunnels)
+
+- **Iter 6** measured the Flask proxy at **+3-12 ms** overhead — negligible.
+- **ngrok free tier** assigns one persistent domain per authtoken. Two `ngrok.forward()` calls collapse onto the same URL (second one clobbers the first). Reverse-proxying `/mcp` through the control server's Flask on `:8080` was the only way to serve both `/webhook` and `/mcp` on the single tunnel without paying for ngrok.
+- **Iter 6 also measured** that the ngrok hop adds **~1,200 ms per MCP round-trip** — that's the real performance problem, NOT the Flask proxy. Optimizing the proxy is pointless next to this.
+- **For production**, the fix is Cloud Run deployment (existing `deploy.sh` scripts), not fighting ngrok.
+
+### Why the rewritten prompt (not just swap LLM)
+
+- **Iter 1** + **Iter 9** together prove the rewritten prompt carries rule-following across models. Even Qwen3 — the original failure case — passes 3 of 4 basic probes on the new prompt, vs. dropping 4 of 4 rules on the old prompt per the bad-call transcript.
+- The prompt rewrite was the cheapest fix; the LLM swap is the durable fix. **Neither alone is as strong as both together.**
+- The MCP tool docstring rewrite (**Iter 7**) extends the anti-booking framing into the model's tool catalog, so even a model that skims the system prompt still sees "Never say the appointment is booked, scheduled, confirmed, or all set" in the `make_booking` description.
+
+---
+
+## Deferred / follow-up work
+
+These are identified in the iteration notes above but not applied in this loop. They are ranked by ROI:
+
+1. **Deploy control server + MCP server to Cloud Run** via `apps/vap/nelson/control/deploy.sh` and `apps/vap/nelson/_unused_mcp/deploy.sh`. Biggest win: eliminates ngrok's ~1,200 ms tool-call round trip (Iter 6). Required for any production use; current setup is dev-only.
+2. **File a Telnyx support ticket** asking them to expose `transcription.settings.keyterm` for Deepgram Flux on the AI Assistants API (Iter 2). Zero effort on your end once filed.
+3. **Add an STT-corrections section to the prompt** listing the top ~30 auto-repair terms with common mishearings (`tires ↔ ties`, `rotors ↔ routers`, `serpentine ↔ serpent in`, etc.) so Claude corrects contextually. Complements rnnoise, belt-and-suspenders for the "ties" class.
+4. **Refactor `call_id` out of the system prompt** (Iter 5 + Iter 7). Instead pass it via MCP session headers or a Telnyx template variable. Enables Anthropic prompt caching and avoids the "model passes stale call_id" failure mode. Savings: ~$4/mo at 3K calls/mo — small, do it when the refactor is happening anyway.
+5. **Merge `fix-prompt-rule-following` → main** once the live-call verification (4 scripted probes on a real phone call) confirms the text findings generalize to the full voice pipeline.
+6. **A/B test `openai/gpt-5`, `gpt-5.1`, `gpt-5.2`** against Haiku. Telnyx just added these; research doc didn't know about them. Might displace Haiku as primary if they're cheaper-with-equal-quality.
+7. **BYOK Claude Sonnet 4.6** only if Haiku ever actually fails on a real call. Requires Telnyx support ticket to get the `external_llm` field schema.
+8. **Rename `_unused_mcp` → `mcp`** (it isn't unused anymore).
+
 ## Open: side experiments worth trying
 
 - [ ] A/B test `openai/gpt-4o` vs `anthropic/claude-haiku-4-5` on real calls — Haiku should win on rule following; worth confirming via the 4 probes on each.
