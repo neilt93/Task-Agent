@@ -621,6 +621,77 @@ Final GET on `neil-nelson-001` confirms the live state matches the optimal setup
 
 **Note**: the assistant's *stored* instructions/greeting fields still hold Telnyx's generic defaults ("You are a helpful assistant..." / "Thanks for calling..."). That's correct because the control server overrides them at `call.answered` time via `start_ai_assistant` with the fully-rendered Nelson prompt. The stored values would only be used as fallback if the control-server webhook isn't reachable — at which point the call is effectively broken anyway (no location lookup, no MCP session context). Leaving as-is.
 
+### Bug pass round 2 (2026-04-14 later)
+
+Continued the bug-pass loop. 5 more passes. 3 more real bugs fixed, 1 partial, 1 flagged as compliance risk requiring a business decision.
+
+#### Bug 7 — `/mcp` endpoint public with zero authentication ✅ partial fix
+
+Completely open tunnel — verified with an unauth POST that `tools/list` returned the full schema to any client. Anyone knowing the ngrok URL could spam `make_booking` / `take_message` and pollute Firestore.
+
+**Fix** (commit `49bac0b7` + `eb81f9f7`):
+1. Created an `/ai/secrets` integration_secret identified as `neil-nelson-mcp-secret` holding a 256-bit random value.
+2. PUT on the Telnyx MCP server resource `069d43b4-…` to set `api_key_ref=neil-nelson-mcp-secret`.
+3. Added an optional Flask `/mcp` auth gate on `MS_MCP_SHARED_SECRET` env var. When set, the route requires `Authorization: Bearer <secret>` and returns 401 + a log line otherwise. When unset, auth is disabled with a startup warning.
+4. Also added hop-by-hop header filtering on the request-forwarding path (was only on response path) and dropped the Authorization header before forwarding to upstream fastmcp (already validated, no need to leak to localhost).
+
+**Unverified**: whether Telnyx actually forwards the stored bearer token as `Authorization: Bearer <secret>` on outgoing MCP requests. Env var defaults to unset so the check is opt-in; enabling it without a live call to validate the header format would block real booking tool calls from Telnyx itself. Live-call verification required before making this mandatory.
+
+#### Bug 8 — LocationDB startup race ✅ no bug (reviewed)
+
+Checked whether the daemon-thread `refresh_all_locations` could race with a webhook arriving during startup. It can — but the fallback path (`refresh_single_location`) does its own Firestore query and returns the doc correctly. Both paths write under the lock. First request on a cold start pays an extra Firestore round trip but returns the right answer. Not worth fixing.
+
+#### Bug 9 — `voice_ai_enabled=False` customer opt-out was ignored ✅ fixed
+
+Location documents have a `voice_ai_enabled` boolean. Three nelson locations currently have it set to `False` — including `nelsons_dinkytown`, a real customer shop. **The control server was not reading this field anywhere** (grep `voice_ai_enabled` on the codebase returned zero matches). Calls to those numbers would still have the AI answer, bypassing the customer's explicit opt-out.
+
+**Fix** (commit `f688594e`): defense-in-depth checks in `process_call_initiated` and `process_call_answered`. If `voice_ai_enabled` is explicitly `False`, early-return before calling `client.calls.actions.answer()` or `start_ai_assistant`. None/missing defaults to enabled (historical behavior). This is a **real customer-impact fix** — flag this as the top reason to deploy the branch.
+
+#### Bug 10 — dead code cleanup ✅ done
+
+- Removed the unused `MS_META_DATA_COLLECTION_NAME` env read in `_unused_mcp/main.py`.
+- Deleted commented-out `allowed_hosts`/`allowed_origins` blocks from `TransportSecuritySettings` referencing a stale ngrok hostname.
+- No unused imports found in main.py / _unused_mcp/main.py / model_prompts.py (AST scan clean).
+- Resolved the pre-existing TODO `change this to 30 seconds for safety` on `dump_call_end_notification_to_firestore` delay (20 → 30 seconds).
+
+#### Bug 11 — `time_limit_secs = 1800` (30 min) is excessive ✅ fixed (Telnyx PATCH, not in git)
+
+The Telnyx default is 30 minutes per call. Typical Nelson call is ~90 seconds. A frozen or trolling call could tie up the line for 30× the expected duration burning platform minutes. Set to **600 (10 min)**, still 5× the expected duration, on `neil-nelson-001` only (surveyed first — all 11 team assistants are on the 1800 default).
+
+#### Bug 12 — `user_idle_timeout_secs = null` (no silence timeout) ✅ fixed (Telnyx PATCH, not in git)
+
+If a caller goes silent (bluetooth dropout, walked away, hung up without a proper signal), the assistant waits until `time_limit_secs`. That was 30 min, now 10 min — still bad. Set `user_idle_timeout_secs = 30` on `neil-nelson-001`. Caller silence for 30s → Telnyx ends the call gracefully.
+
+#### Bug 13 — recording enabled without disclosure, in potentially two-party consent states ⚠️ flagged, not fixed
+
+`recording_settings.enabled=True`, dual-channel, mp3. Every nelson production assistant has recording enabled. The greeting does NOT include a recording disclosure. Several US states require **all-party consent** for call recording:
+
+- California (§632)
+- Florida (§934.03)
+- Illinois (720 ILCS 5/14-2)
+- Maryland (§10-402)
+- Massachusetts (§272-99)
+- Montana (§45-8-213)
+- New Hampshire (§570-A:2)
+- Pennsylvania (18 Pa.C.S.A. §5703)
+- Washington (§9.73.030)
+
+**Did NOT change** the shared greeting template — it affects all sobti/nadeem/demo deployments too and modifying it is a business decision, not a bug fix. Options if/when this needs addressing:
+
+1. **Add a per-location `vap_recording_disclosure` field** to the Firestore location doc. Prepend a disclosure to the greeting only if set. Gives each shop opt-in control.
+2. **Disable recording** on assistants serving two-party-consent states (`recording_settings.enabled=False`).
+3. **Add a static disclosure** to the greeting template for all shops — simplest but affects UX across the fleet.
+
+For neil's test setup specifically, this doesn't matter because the only callers are us. But it should be addressed before onboarding a real shop in a two-party consent state.
+
+#### Bug 14 — Flask /mcp proxy hop-by-hop request header forwarding ✅ fixed
+
+Bundled with Bug 7 in commit `eb81f9f7`. The response path already filtered hop-by-hop headers; the request path was only filtering Host. Added filters for the full hop-by-hop set + Authorization (now that we validate it at the proxy and don't want to leak to upstream).
+
+#### Bug 15 — webhook handler dead code + unused events ✅ no real bug
+
+The `handlers` dict in `process_webhook_data` only routes `call.initiated`, `call.answered`, `call.conversation.ended`. Everything else (call.hangup, call.transcription, call.recording.saved, call.analyzed, call.conversation_insights.generated, mcp_call.*) falls through to `absorb_call_event` + generic Firestore dump. That's intentional, not a bug — those events get persisted for downstream consumers to read from the `control_events_data` collection. Not adding more handlers.
+
 ## Open: side experiments worth trying
 
 - [ ] A/B test `openai/gpt-4o` vs `anthropic/claude-haiku-4-5` on real calls — Haiku should win on rule following; worth confirming via the 4 probes on each.
