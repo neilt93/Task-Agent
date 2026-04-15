@@ -553,6 +553,74 @@ These are identified in the iteration notes above but not applied in this loop. 
 7. **BYOK Claude Sonnet 4.6** only if Haiku ever actually fails on a real call. Requires Telnyx support ticket to get the `external_llm` field schema.
 8. **Rename `_unused_mcp` → `mcp`** (it isn't unused anymore).
 
+---
+
+## Bug passes (2026-04-14 late session)
+
+After the 10-iter research loop, a follow-up round of bug passes surfaced **6 real bugs** in the pipeline and fixed them. All committed on `fix-prompt-rule-following`; 98/98 tests pass after fixes.
+
+### Bug 0 — **Tool calls are actually firing** ✅ (confirmed, not a bug)
+
+Critical sanity check: Iters 1 and 9 sent the rendered prompt to `/ai/chat/completions` WITHOUT passing tool schemas, so the model could only *respond with text that sounded like* a tool call. Re-ran the booking and message flows with real tool schemas in the `tools` param. All three tested models (Claude Haiku 4.5, GPT-4o, GPT-5) emit real `tool_calls` with valid arguments including the correct `call_id`. Tools fire. Also verified end-to-end via a direct MCP tools/call through the Flask proxy — the fastmcp server receives the call, executes the function, and fires the control-server webhook with 200 OK.
+
+### Bug 1 — LLM date disambiguation was wrong on unqualified weekday names ✅ fixed
+
+Discovered while verifying tool calls: Haiku was resolving "Friday" (no "this"/"next" qualifier) to April 18 (Saturday) instead of April 17 in 2026. Not a regex false positive — the model's *content* also said "Friday, April 18th". Same bug appeared on "Monday" → April 21 (Tuesday) at first, then fixed after a first-pass prompt edit.
+
+**Root cause**: Haiku wasn't reliably reading the calendar rows in the rendered prompt and was falling back to its own pretrained 2026 day-of-week math (which is off for 2026).
+
+**Fix** (commit `a8ef9708`): rewrote `get_calendar()` to produce (a) an explicit day-row list `- Friday = 2026-04-17 = April 17` and (b) a pre-computed **anchor table** with one row per weekday: `"Friday" / "this Friday" / "next Friday" = 2026-04-17`, special-casing the current weekday so `"this X"` and `"next X"` are differentiated. Plus a CRITICAL line telling the model not to trust its own training-data calendar. After the fix: 7/7 date scenarios pass on Haiku including the previously-failing Friday case. Updated the TestGetCalendar test class to match the new format (+2 new tests for the anchor table).
+
+### Bug 2 — `CallDB.initialize_call` wasn't idempotent ✅ fixed
+
+When Telnyx retries a `call.initiated` webhook (e.g., on delivery timeout), the old code unconditionally overwrote the existing call dict with `answered: False`, `transcription_started: False`, `ai_assistant_started: False`. This defeated the "do it at most once" idempotence checks in `process_call_initiated` / `process_call_answered` — the flags that were supposed to short-circuit the retry were being reset on every retry. Commit `d572f5ba "Do things at most once"` tried to fix duplicates but only at the handler level, not at the DB init level.
+
+**Fix** (commit `eb185654`): double-checked lock pattern in `initialize_call`:
+1. Fast path: return existing entry under the lock, no Firestore lookup.
+2. Slow path: release the lock, fetch LocationDB (which may hit Firestore), re-acquire the lock, check again for races, then create the new entry.
+
+The re-check handles the race where two concurrent retries both make it past the fast-path check. Keeps the Firestore lookup out of the critical section.
+
+### Bug 3 — `process_call_conversation_ended` used `assert` on missing call ✅ fixed
+
+If `call.conversation.ended` arrives for a call we don't have in `CallDB` (server restart mid-call, post-GC late delivery, never-seen-the-initiated case), the old `assert call is not None` threw `AssertionError` → Flask 500 → Telnyx webhook retry → same 500 → infinite retry until Telnyx gives up.
+
+**Fix** (commit `eb185654`): log and return early so Flask returns 200 and Telnyx stops retrying.
+
+### Bug 4 — MCP `fire_and_forget` tasks could be garbage-collected mid-execution ✅ fixed
+
+`fire_and_forget` created async tasks via `asyncio.create_task(...)` and **kept no strong reference to them**. Python's event loop only holds WEAK references to tasks — per the docs, "Save a reference to the result of this function, to avoid a task disappearing mid-execution." Under some GC conditions the Firestore dump or control-server POST could silently disappear.
+
+**Fix** (commit `eb185654`): module-level `_FIRE_AND_FORGET_TASKS: set[asyncio.Task]` strong-ref set. Each new task is added, and a `task.add_done_callback(_FIRE_AND_FORGET_TASKS.discard)` removes it on completion. Also hardened `make_event()` against malformed inputs (missing `call_control_id` key) — `.get()` with default `""` instead of `[...]` KeyError.
+
+### Bug 5 — prompt had two duplicate "Once you have all three" paragraphs ✅ fixed
+
+In the `## Taking an appointment request` section, one paragraph said "summarize and close warmly" and the next said "call make_booking and close warmly". A weak instruction follower could satisfy the first (summary + close) and skip the tool call from the second.
+
+**Fix** (commit `0fbe5be2`): consolidated into a single numbered sequence "(1) Call `make_booking` (2) Then close warmly with a summary". Mirrors the order in the `## Taking a message` section for consistency.
+
+### Non-bug — weekend rejection works correctly with the production prompt
+
+A probe trying "Saturday at noon" with a **truncated** `appointment_availability` string ("Appts Mon-Fri 8-5.") caused Haiku to accept the weekend request. Re-ran with the production string ("Appointments are available Monday through Friday, 8:00 AM to 5:00 PM only. The shop does not operate on weekends or outside of working hours") and Haiku correctly refuses ALL weekend requests across 4 different phrasings. This was a **test bug**, not a prompt bug. The production code is fine.
+
+### Live Telnyx state drift check ✅ clean
+
+Final GET on `neil-nelson-001` confirms the live state matches the optimal setup with no drift:
+
+| field | live value |
+|---|---|
+| name | `neil-nelson-001` |
+| model | `anthropic/claude-haiku-4-5` |
+| fallback model | `openai/gpt-4.1` |
+| mcp_servers | `[069d43b4-1b1a-44dd-875b-8abe13ddedad]` |
+| voice | `Telnyx.Ultra.a7a59115-…` (Amber - Warm Support Agent) |
+| STT | `deepgram/flux` |
+| noise_suppression | `rnnoise` |
+| recording | enabled, mp3, dual-channel |
+| tools (built-in) | `[hangup]` |
+
+**Note**: the assistant's *stored* instructions/greeting fields still hold Telnyx's generic defaults ("You are a helpful assistant..." / "Thanks for calling..."). That's correct because the control server overrides them at `call.answered` time via `start_ai_assistant` with the fully-rendered Nelson prompt. The stored values would only be used as fallback if the control-server webhook isn't reachable — at which point the call is effectively broken anyway (no location lookup, no MCP session context). Leaving as-is.
+
 ## Open: side experiments worth trying
 
 - [ ] A/B test `openai/gpt-4o` vs `anthropic/claude-haiku-4-5` on real calls — Haiku should win on rule following; worth confirming via the 4 probes on each.
