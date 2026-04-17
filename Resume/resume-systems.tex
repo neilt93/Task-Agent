@@ -128,12 +128,12 @@
 \resumeSubHeadingListStart
 
   \resumeSubheading
-    {Cybernetic AI}{Mar 2026 -- Present}
-    {Research Engineer, Robotics}{San Francisco, CA (Remote)}
+    {Cybernetic Labs}{Mar 2026 -- Present}
+    {ML Engineer (Part-time)}{San Francisco, CA (Remote)}
   \resumeItemListStart
-    \resumeItem{Built FIPER + Sentinel runtime failure diagnostics for the RoboEval platform (FastAPI + Celery + Postgres + Isaac Sim): paper-accurate STAC conformal prediction, RND-OE on observation embeddings, and ACE (Action Chunk Entropy) for diffusion policies.}
-    \resumeItem{Shipped sim-to-real for SO-101 packing and Franka pick-and-place: 2-camera SmolVLA deployment, GR00T N1.6 policy integration, joint-space bridge from simulation to real hardware.}
-    \resumeItem{Added VLM-based task progress (host-side Qwen2.5-VL-7B scoring) and Sentinel combined-alarm logic; resolved a full production audit (3 critical, 7 medium, 7 low bugs) and 20+ PR review issues.}
+    \resumeItem{Fixed critical Isaac Sim USD bugs affecting SO-101 sim-to-real transfer (near-zero joint drive stiffness, degrees-to-radians mismatch).}
+    \resumeItem{Extended the sim-to-real pipeline with 2-camera SmolVLA deployment, joint-space policy transfer, and a batch sim episode generator.}
+    \resumeItem{Built a task-generic evaluation runner with pluggable task definitions, expert registry, and success evaluators; contributed to the FastAPI/SQLAlchemy backend and Vite/React dashboard.}
   \resumeItemListEnd
 
   \resumeSubheading
