@@ -19,19 +19,17 @@ Build the two-agent AutoLab research system:
 - [x] router/ai_adapter.py rewritten to AIDE's real Hydra `key=value` contract
 - [x] OpenRouter shim verified (OPENAI_BASE_URL=openrouter + anthropic/claude-* model)
 - [x] End-to-end AIDE run on bundled house_prices: 3 steps, RMSE=0.13, real lightgbm code
+- [x] **`make ideate-aide-smoke`** — full E2E on AIDE's bundled house_prices (no Kaggle)
+- [x] Verified outcome lands in `ideator_outcomes` (idea 389b3c3a7143-001-1, score=0.1317)
 - [x] CLAUDE.md updated with Ideator + AIDE setup section
 
-### Open / gated on me
-- [ ] Install `git-lfs` via brew so `vendor/mle-bench/` can be cloned
-- [ ] Drop a Kaggle API token at `~/.kaggle/kaggle.json` and accept Spaceship Titanic rules at kaggle.com
-- [ ] Decide spend cap for the MLE-Bench smoke (steps=2 ≈ $1-3; steps=20 ≈ $10-20)
+### Open / Kaggle path (skipped — using open source instead)
+- [ ] ~~MLE-Bench / Spaceship Titanic~~ — skipped per "use whatever is open source". `make ideate-mle-bench-smoke` still in tree but gated; the open-source `make ideate-aide-smoke` covers the same ground without Kaggle.
 
 ### Open / next session
-- [ ] `git submodule add https://github.com/openai/mle-bench vendor/mle-bench` (after git-lfs)
-- [ ] Run `make ideate-mle-bench-smoke COMPETITION=spaceship-titanic` end-to-end
-- [ ] Verify score lands in `ideator_outcomes.metrics`
-- [ ] Wire AIDE outcome → bandit reward + archive Elo update via `make ai-run --update-bandit --update-elo`
-- [ ] Decide whether to estimate AIDE's external spend and log it to `api_calls` for budget visibility
+- [ ] Wire AIDE outcome → bandit reward + archive Elo update inside `aide_smoke.py` (currently only `ai_run.py` has the `--update-bandit` / `--update-elo` flags)
+- [ ] Decide whether to estimate AIDE's external spend and log it to `api_calls` for budget visibility (currently AIDE bypasses our spend tracking)
+- [ ] Try `make ideate-aide-smoke` against `bitcoin_price` to confirm dataset-portability
 
 ## Milestones
 
@@ -39,11 +37,13 @@ Build the two-agent AutoLab research system:
 |---|---|---|
 | 2026-03 | Filter M0-M7 | done |
 | 2026-04-29 | Ideator I0-I7 + AIDE wiring on synthetic | done |
-| TBD (gated on Kaggle creds) | I8 — Spaceship Titanic E2E with real data | blocked |
+| 2026-04-29 | I8 — open-source E2E on house_prices (no Kaggle) | done |
+| TBD (only if needed) | Optional Kaggle/MLE-Bench path | deferred |
 
 ## Log
 
 - **2026-04-29** Ideator I0-I7 shipped. AIDE adapter rewritten to real Hydra contract after I overstated I7 in the prior session ("the Implementer didn't actually run"). Verified end-to-end on AIDE's bundled `house_prices` task: real Sonnet-4.6-via-OpenRouter call, real lightgbm code, RMSE=0.13. Commit `c8c2e8a`.
+- **2026-04-29** Added `make ideate-aide-smoke` for open-source E2E (no Kaggle). Reused existing archive entry `389b3c3a7143-001-1` → handoff regen → AIDE 2 steps on house_prices → RMSE=0.1317 → outcome row in `ideator_outcomes`. 58s wall-clock, $0.003 internally tracked. Commit `ea32b59`.
 
 ## Notes
 
